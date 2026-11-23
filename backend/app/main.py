@@ -1,20 +1,55 @@
+import logging
+from contextlib import asynccontextmanager
+
+from app.api.v1 import router as api_v1_router
+from app.core.config import settings
+from app.ml.inference import ModelNotLoadedError, inference
 from fastapi import FastAPI
-from app.api.v1.health import router as health_router
+from fastapi.middleware.cors import CORSMiddleware
+
+logger = logging.getLogger("fraudguard")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        inference.load()
+        logger.info(
+            "Model loaded: %s (schema %s)",
+            inference.version,
+            inference.schema_version,
+        )
+    except ModelNotLoadedError as exc:
+        logger.warning("Model not loaded: %s", exc)
+        logger.warning("Run `python -m app.ml.train_bootstrap` to create one.")
+    yield
+
 
 app = FastAPI(
-    title="FraudGuard AI",
-    version="1.0.0"
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    lifespan=lifespan,
 )
 
-app.include_router(
-    health_router,
-    prefix="/api/v1",
-    tags=["Health"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.FRONTEND_ORIGIN],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+app.include_router(api_v1_router)
 
-@app.get("/")
-def root():
+
+@app.get("/health", tags=["system"])
+def health() -> dict:
     return {
-        "message": "FraudGuard AI is running"
+        "status": "ok",
+        "service": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "model_loaded": inference.is_loaded,
+        "model_version": inference.version if inference.is_loaded else None,
     }

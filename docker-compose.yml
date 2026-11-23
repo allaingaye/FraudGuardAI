@@ -7,12 +7,16 @@ services:
     ports:
       - "8001:8000"
     env_file:
-      - .env
+      - .env                          # root .env — single source of truth
     volumes:
       - ./backend:/app
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy    # wait for Postgres
+      redis:
+        condition: service_healthy    # wait for Redis
+    networks:
+      - fraudguard_net
 
   frontend:
     build:
@@ -23,8 +27,12 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    env_file:
+      - ./frontend/.env               # keep frontend .env separate
     depends_on:
       - backend
+    networks:
+      - fraudguard_net
 
   db:
     image: postgres:17
@@ -33,17 +41,36 @@ services:
     environment:
       POSTGRES_DB: fraudguard
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123
+      POSTGRES_PASSWORD: postgres123  # ← .env must use this password
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:                      # NEW
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fraudguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - fraudguard_net
 
   redis:
     image: redis:7-alpine
     container_name: fraudguard_redis
     ports:
       - "6381:6379"
+    healthcheck:                      # NEW
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - fraudguard_net
 
 volumes:
   postgres_data:
+
+networks:                             # NEW
+  fraudguard_net:
+    driver: bridge

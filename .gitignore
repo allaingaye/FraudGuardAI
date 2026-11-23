@@ -22,3 +22,19 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Model artifacts
+backend/models/*.joblib
+backend/models/*.metadata.json
+# ===== Added: coverage + tool caches =====
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+.idea/
+
+# Broader log patterns
+logs/
+*.log.*

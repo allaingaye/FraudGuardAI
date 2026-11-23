@@ -1,7 +1,7 @@
-﻿# Default: normalize to LF in the repo, checkout native on Windows if needed
+# Default: normalize to LF in the repo
 * text=auto eol=lf
 
-# Force LF for scripts and configs — prevents pre-commit / git fights
+# Force LF for scripts and configs
 *.py    text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf

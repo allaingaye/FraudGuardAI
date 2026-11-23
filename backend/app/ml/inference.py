@@ -11,6 +11,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.ml.features import FEATURE_COLUMNS, TransactionFeatures, features_to_vector
 from app.models.model_version import ModelVersion
@@ -43,7 +44,10 @@ class InferenceService:
                     "No active model in model_versions. Run: " "python -m app.ml.train_bootstrap"
                 )
 
-            path = Path(active.artifact_path)
+            # artifact_path is stored as just the filename (e.g. "fraud-model-bootstrap-1.0.joblib")
+            # Resolve it against MODEL_DIR so it works in Docker (/app/models) and CI (backend/models).
+            model_dir = Path(settings.MODEL_DIR).resolve()
+            path = model_dir / Path(active.artifact_path).name
             if not path.exists():
                 raise ModelNotLoadedError(f"Artifact missing at {path}")
 
@@ -91,4 +95,9 @@ def _current_schema_version() -> str:
 # Module-level singleton
 inference = InferenceService()
 
-__all__ = ["inference", "InferenceService", "ModelNotLoadedError", "FEATURE_COLUMNS"]
+__all__ = [
+    "inference",
+    "InferenceService",
+    "ModelNotLoadedError",
+    "FEATURE_COLUMNS",
+]

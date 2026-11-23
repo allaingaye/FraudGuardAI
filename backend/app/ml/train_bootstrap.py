@@ -21,6 +21,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.ml.features import FEATURE_COLUMNS, FEATURE_SCHEMA_VERSION
 from app.models.model_version import ModelVersion
@@ -36,9 +37,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-MODEL_DIR = Path("/app/models")
 MODEL_VERSION = "fraud-model-bootstrap-1.0"
 DATASET_NAME = "synthetic-v1"
+MODEL_DIR = Path(settings.MODEL_DIR).resolve()
 
 
 def _synth_row(rng: random.Random) -> tuple[list[float], int]:
@@ -67,7 +68,16 @@ def _synth_row(rng: random.Random) -> tuple[list[float], int]:
     is_night = 1 if (hour < 6 or hour >= 22) else 0
     amount_log = math.log1p(max(amount, 0.0))
 
-    vec = [amount, hour, dow, is_weekend, is_night, amount_log, currency_risk, type_encoded]
+    vec = [
+        amount,
+        hour,
+        dow,
+        is_weekend,
+        is_night,
+        amount_log,
+        currency_risk,
+        type_encoded,
+    ]
     return vec, is_fraud
 
 
@@ -147,12 +157,11 @@ def train() -> dict:
     try:
         existing = db.query(ModelVersion).filter(ModelVersion.version == MODEL_VERSION).first()
         if existing:
-            existing.artifact_path = str(artifact_path)
+            existing.artifact_path = artifact_path.name
             existing.checksum = checksum
             existing.metrics_json = metrics
             existing.trained_at = datetime.now(UTC)
             existing.is_active = True
-            # deactivate others
             db.query(ModelVersion).filter(ModelVersion.id != existing.id).update(
                 {ModelVersion.is_active: False}
             )
@@ -161,7 +170,7 @@ def train() -> dict:
             db.add(
                 ModelVersion(
                     version=MODEL_VERSION,
-                    artifact_path=str(artifact_path),
+                    artifact_path=artifact_path.name,
                     checksum=checksum,
                     dataset_name=DATASET_NAME,
                     feature_schema_version=FEATURE_SCHEMA_VERSION,
@@ -186,7 +195,7 @@ def main() -> None:
     print(f"  version:   {meta['model_version']}")
     print(f"  dataset:   {meta['dataset']}")
     print(f"  checksum:  {meta['checksum'][:16]}...")
-    print(f"  artifact:  /app/models/{meta['model_version']}.joblib")
+    print(f"  artifact:  {MODEL_DIR / meta['model_version']}.joblib")
     print()
     print("Metrics:")
     for k, v in meta["metrics"].items():
